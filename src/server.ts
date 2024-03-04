@@ -1,13 +1,15 @@
 import fastify from 'fastify'
+import { knex } from './database'
 
 const app = fastify()
 
-/* Create one route => https://localhost:3333/hello */
-app.get('/hello', () => {
-  return 'Hello World!'
+/* Create one route => http://localhost:3333/hello */
+app.get('/hello', async () => {
+  const tables = await knex('sqlite_schema').select('*')
+
+  return tables
 })
 
-/* Running the server on port: 3333 */
 app
   .listen({
     port: 3333,
