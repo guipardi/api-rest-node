@@ -3,8 +3,14 @@ import { knex } from '../database'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { checkSessionIdExists } from '../middlewares/check-session-id-exists'
+import { logTransactions } from '../middlewares/log-transactions'
 
 export async function transactionsRoutes(app: FastifyInstance) {
+  app.addHook(
+    'preHandler',
+    logTransactions,
+  ) /* preHandler, global, apenas esse plugin de rotas */
+
   app.get('/', { preHandler: [checkSessionIdExists] }, async (request) => {
     const { sessionId } = request.cookies
 
