@@ -1,52 +1,58 @@
 import { FastifyInstance } from 'fastify'
-import { knex } from '../database'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
+import { knex } from '../database'
 import { checkSessionIdExists } from '../middlewares/check-session-id-exists'
-import { logTransactions } from '../middlewares/log-transactions'
 
 export async function transactionsRoutes(app: FastifyInstance) {
-  app.addHook(
-    'preHandler',
-    logTransactions,
-  ) /* preHandler, global, apenas esse plugin de rotas */
+  app.get(
+    '/',
+    {
+      preHandler: [checkSessionIdExists],
+    },
+    async (request) => {
+      const { sessionId } = request.cookies
 
-  app.get('/', { preHandler: [checkSessionIdExists] }, async (request) => {
-    const { sessionId } = request.cookies
+      const transactions = await knex('transactions')
+        .where('session_id', sessionId)
+        .select()
 
-    const transactions = await knex('transactions')
-      .where('session_id', sessionId)
-      .select() /* Buscar todos os campos */
+      return { transactions }
+    },
+  )
 
-    return {
-      transactions,
-    }
-  })
-
-  app.get('/:id', { preHandler: [checkSessionIdExists] }, async (request) => {
-    const getTransactionParamsSchema = z.object({
-      id: z.string().uuid(),
-    })
-
-    const { sessionId } = request.cookies
-
-    const { id } = getTransactionParamsSchema.parse(request.params)
-
-    const transaction = await knex('transactions')
-      .where({
-        session_id: sessionId,
-        id,
+  app.get(
+    '/:id',
+    {
+      preHandler: [checkSessionIdExists],
+    },
+    async (request) => {
+      const getTransactionsParamsSchema = z.object({
+        id: z.string().uuid(),
       })
-      .first()
 
-    return {
-      transaction,
-    }
-  })
+      const { id } = getTransactionsParamsSchema.parse(request.params)
+
+      const { sessionId } = request.cookies
+
+      const transaction = await knex('transactions')
+        .where({
+          session_id: sessionId,
+          id,
+        })
+        .first()
+
+      return {
+        transaction,
+      }
+    },
+  )
 
   app.get(
     '/summary',
-    { preHandler: [checkSessionIdExists] },
+    {
+      preHandler: [checkSessionIdExists],
+    },
     async (request) => {
       const { sessionId } = request.cookies
 
@@ -55,9 +61,7 @@ export async function transactionsRoutes(app: FastifyInstance) {
         .sum('amount', { as: 'amount' })
         .first()
 
-      return {
-        summary,
-      }
+      return { summary }
     },
   )
 
@@ -77,9 +81,9 @@ export async function transactionsRoutes(app: FastifyInstance) {
     if (!sessionId) {
       sessionId = randomUUID()
 
-      reply.cookie('sessionId', sessionId, {
-        path: '/' /* Todas as rotas podem acessar esse cookie */,
-        maxAge: 60 * 60 * 24 * 7, // 7 dias
+      reply.setCookie('sessionId', sessionId, {
+        path: '/',
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       })
     }
 
@@ -87,7 +91,7 @@ export async function transactionsRoutes(app: FastifyInstance) {
       id: randomUUID(),
       title,
       amount: type === 'credit' ? amount : amount * -1,
-      session_id: sessionId.toString(),
+      session_id: sessionId,
     })
 
     return reply.status(201).send()
